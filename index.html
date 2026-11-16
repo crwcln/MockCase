@@ -1,0 +1,2297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MockCase — Editorial Alternating Text Utility</title>
+  <style>
+    /* ==========================================================================
+       DESIGN TOKENS & THEME VARIABLES
+       ========================================================================== */
+    :root {
+      --bg-canvas: #F7F7F5;
+      --bg-surface: #FFFFFF;
+      --bg-well: #EFECE6;
+      --bg-well-hover: #E6E2DA;
+      --border-hairline: #E4E4E0;
+      --border-strong: #D1D0C9;
+      --text-primary: #141413;
+      --text-secondary: #6B6A65;
+      --text-tertiary: #8E8D87;
+      --accent: #E04F16;
+      --accent-hover: #C84310;
+      --accent-tint: #FFF1EC;
+      --accent-border: rgba(224, 79, 22, 0.28);
+      --shadow-subtle: 0 1px 2px rgba(20, 20, 19, 0.04);
+      --shadow-elevated: 0 6px 20px rgba(20, 20, 19, 0.07);
+      --header-bg: rgba(247, 247, 245, 0.88);
+      --dock-bg: rgba(255, 255, 255, 0.92);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-pill: 9999px;
+      --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    html[data-theme="dark"] {
+      --bg-canvas: #111110;
+      --bg-surface: #191918;
+      --bg-well: #222220;
+      --bg-well-hover: #2B2B28;
+      --border-hairline: #2B2B28;
+      --border-strong: #3A3A36;
+      --text-primary: #F2F2EF;
+      --text-secondary: #9A9891;
+      --text-tertiary: #6E6D67;
+      --accent: #FF6B35;
+      --accent-hover: #FF8254;
+      --accent-tint: rgba(255, 107, 53, 0.13);
+      --accent-border: rgba(255, 107, 53, 0.32);
+      --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.28);
+      --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.42);
+      --header-bg: rgba(17, 17, 16, 0.88);
+      --dock-bg: rgba(25, 25, 24, 0.94);
+    }
+
+    /* ==========================================================================
+       BASE RESET & ENTRANCE MOTION
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transition: background-color 180ms ease, color 180ms ease;
+    }
+
+    body {
+      min-height: 100dvh;
+      padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    }
+
+    @media (min-width: 900px) {
+      body {
+        padding-bottom: 48px;
+      }
+    }
+
+    @keyframes editorialEnter {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .app-shell {
+      animation: editorialEnter 220ms var(--ease-out) both;
+    }
+
+    .tabular {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ==========================================================================
+       STICKY HEADER
+       ========================================================================== */
+    .top-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .top-header.is-scrolled {
+      border-bottom-color: var(--border-hairline);
+      box-shadow: var(--shadow-subtle);
+    }
+
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    @media (min-width: 768px) {
+      .header-inner {
+        padding: 14px 24px;
+      }
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .brand-mark {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .brand-mark span {
+      color: var(--accent);
+    }
+
+    .brand-tag {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: none;
+    }
+
+    @media (min-width: 540px) {
+      .brand-tag {
+        display: inline;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .kbd-hint {
+      display: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-well);
+      border: 1px solid var(--border-hairline);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    @media (min-width: 900px) {
+      .kbd-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+    }
+
+    .icon-btn {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg-well);
+      border-color: var(--border-strong);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* ==========================================================================
+       MAIN LAYOUT GRID
+       ========================================================================== */
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .container {
+        padding: 20px 24px;
+        gap: 20px;
+      }
+    }
+
+    @media (min-width: 900px) {
+      .container {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+    }
+
+    .column-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    /* ==========================================================================
+       CARDS & PANES
+       ========================================================================== */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-subtle);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini-btn {
+      min-height: 36px;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-well);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+
+    @media (max-width: 600px) {
+      .mini-btn {
+        min-height: 44px;
+        padding: 8px 12px;
+      }
+    }
+
+    .mini-btn:hover {
+      background: var(--bg-well-hover);
+      border-color: var(--border-strong);
+    }
+
+    .mini-btn.accent-pill {
+      background: var(--accent-tint);
+      border-color: var(--accent-border);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .mini-btn.accent-pill:hover {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+
+    /* Textareas & Output Box */
+    .editor-wrap {
+      position: relative;
+      padding: 14px 16px;
+    }
+
+    textarea.source-input {
+      width: 100%;
+      min-height: 152px;
+      border: none;
+      outline: none;
+      resize: vertical;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 15px;
+      line-height: 1.6;
+      display: block;
+    }
+
+    textarea.source-input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .output-display {
+      width: 100%;
+      min-height: 152px;
+      max-height: 340px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      user-select: all;
+    }
+
+    .output-placeholder {
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    /* Re-roll Spin Animation */
+    .reroll-icon {
+      display: inline-flex;
+      transition: transform 240ms var(--ease-out);
+    }
+
+    .reroll-icon.is-spinning {
+      transform: rotate(180deg);
+    }
+
+    /* Stats & Ratio Bar */
+    .pane-footer {
+      padding: 10px 16px;
+      background: var(--bg-well);
+      border-top: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .ratio-meter-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 160px;
+      justify-content: flex-end;
+    }
+
+    .ratio-track {
+      width: 84px;
+      height: 6px;
+      background: var(--border-hairline);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+    }
+
+    .ratio-fill {
+      height: 100%;
+      width: 55%;
+      background: var(--accent);
+      border-radius: var(--radius-pill);
+      transition: width 180ms var(--ease-out);
+    }
+
+    /* ==========================================================================
+       CONTROLS SECTION
+       ========================================================================== */
+    .control-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .control-block {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .control-sublabel {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Segmented Control */
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--bg-well);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .seg-btn {
+      min-height: 40px;
+      padding: 6px 4px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    @media (max-width: 420px) {
+      .seg-btn {
+        font-size: 11px;
+        min-height: 44px;
+      }
+    }
+
+    .seg-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .seg-btn[aria-pressed="true"] {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      border-color: var(--border-hairline);
+      box-shadow: var(--shadow-subtle);
+    }
+
+    /* Custom Range Slider */
+    .slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    input[type="range"].editorial-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 28px;
+      background: transparent;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    input[type="range"].editorial-slider:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    input[type="range"].editorial-slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-well);
+      border: 1px solid var(--border-hairline);
+    }
+
+    input[type="range"].editorial-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      border: 2px solid var(--accent);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+      margin-top: -9px;
+      transition: transform 120ms ease, background-color 120ms ease;
+    }
+
+    input[type="range"].editorial-slider:not(:disabled)::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      background: var(--accent);
+    }
+
+    input[type="range"].editorial-slider::-moz-range-track {
+      height: 6px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-well);
+      border: 1px solid var(--border-hairline);
+    }
+
+    input[type="range"].editorial-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      border: 2px solid var(--accent);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+    }
+
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .preset-pill {
+      min-height: 36px;
+      padding: 6px 11px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-well);
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 140ms ease;
+    }
+
+    @media (max-width: 600px) {
+      .preset-pill {
+        min-height: 44px;
+      }
+    }
+
+    .preset-pill:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .preset-pill.is-active {
+      background: var(--accent-tint);
+      border-color: var(--accent-border);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Toggle Switches List */
+    .toggle-list {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .toggle-item {
+      min-height: 48px;
+      padding: 10px 14px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      transition: background-color 140ms ease;
+    }
+
+    .toggle-item:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-item:hover {
+      background: var(--bg-well);
+    }
+
+    .toggle-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .toggle-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .toggle-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-well-hover);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill);
+      transition: background-color 160ms ease, border-color 160ms ease;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 180ms var(--ease-out);
+    }
+
+    .switch input:checked + .switch-track {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .switch input:checked + .switch-track::after {
+      transform: translateX(18px);
+      background: #FFFFFF;
+    }
+
+    .switch input:focus-visible + .switch-track {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ==========================================================================
+       3-VARIATION QUICK PICKER
+       ========================================================================== */
+    .variations-list {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .variation-card {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-well);
+      color: var(--text-primary);
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      transition: background-color 140ms ease, border-color 140ms ease;
+    }
+
+    .variation-card:hover {
+      background: var(--bg-well-hover);
+      border-color: var(--accent-border);
+    }
+
+    .variation-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    .variation-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+
+    /* ==========================================================================
+       DESKTOP ACTION BAR & STICKY MOBILE DOCK
+       ========================================================================== */
+    .desktop-actions {
+      display: none;
+      padding: 14px 16px;
+      border-top: 1px solid var(--border-hairline);
+      background: var(--bg-surface);
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @media (min-width: 900px) {
+      .desktop-actions {
+        display: flex;
+      }
+    }
+
+    .action-btn {
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-well);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      cursor: pointer;
+      transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
+    }
+
+    .action-btn:hover {
+      background: var(--bg-well-hover);
+      border-color: var(--border-strong);
+    }
+
+    .action-btn:active {
+      transform: scale(0.98);
+    }
+
+    .action-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+      font-weight: 600;
+      flex: 1;
+      min-width: 110px;
+    }
+
+    .action-btn.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    /* Sticky Mobile Bottom Bar */
+    .mobile-dock {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 45;
+      background: var(--dock-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-top: 1px solid var(--border-hairline);
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: 1.35fr repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    @media (min-width: 900px) {
+      .mobile-dock {
+        display: none;
+      }
+    }
+
+    .dock-btn {
+      min-height: 46px;
+      padding: 4px 6px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: pointer;
+      transition: background-color 120ms ease, transform 100ms ease;
+    }
+
+    .dock-btn:active {
+      transform: scale(0.96);
+    }
+
+    .dock-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 12px;
+      flex-direction: row;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       COLLAPSIBLE RECENT HISTORY DRAWER
+       ========================================================================== */
+    .history-toggle-btn {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .history-chevron {
+      transition: transform 200ms var(--ease-out);
+      color: var(--text-secondary);
+    }
+
+    .history-chevron.is-open {
+      transform: rotate(180deg);
+    }
+
+    .history-panel {
+      border-top: 1px solid var(--border-hairline);
+      padding: 12px 16px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .history-panel.is-open {
+      display: flex;
+    }
+
+    .history-empty {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 14px 8px;
+    }
+
+    .history-item {
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background: var(--bg-well);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-item-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .history-item-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .history-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* ==========================================================================
+       TOAST NOTIFICATION
+       ========================================================================== */
+    .toast {
+      position: fixed;
+      bottom: calc(74px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      z-index: 60;
+      background: var(--text-primary);
+      color: var(--bg-canvas);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 10px 16px;
+      border-radius: var(--radius-pill);
+      box-shadow: var(--shadow-elevated);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 200ms var(--ease-out);
+      white-space: nowrap;
+      max-width: calc(100vw - 32px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (min-width: 900px) {
+      .toast {
+        bottom: 24px;
+      }
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sticky Header -->
+    <header class="top-header" id="topHeader">
+      <div class="header-inner">
+        <div class="brand">
+          <div class="brand-mark">Mo<span>c</span>kCa<span>s</span>e</div>
+          <span class="brand-tag">Editorial Alternating Typography</span>
+        </div>
+        <div class="header-actions">
+          <span class="kbd-hint" title="Keyboard shortcuts">
+            <span>⌘↵ Re-roll</span>
+            <span>·</span>
+            <span>⌘⇧C Copy</span>
+          </span>
+          <button type="button" class="icon-btn" id="themeToggle" aria-label="Toggle color theme">
+            <svg id="themeIconSun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+            </svg>
+            <svg id="themeIconMoon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+            <span id="themeLabel">Dark</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="container">
+      <!-- Left Column: Source Input + Controls -->
+      <div class="column-stack">
+        <!-- Source Input Pane -->
+        <section class="card" aria-labelledby="sourceHeading">
+          <div class="card-header">
+            <h2 class="card-title" id="sourceHeading">Source Text</h2>
+            <div class="toolbar-group">
+              <button type="button" class="mini-btn" id="pasteBtn" title="Paste from clipboard">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect>
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                </svg>
+                Paste
+              </button>
+              <button type="button" class="mini-btn" id="sampleBtn" title="Cycle sample texts">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Sample
+              </button>
+              <button type="button" class="mini-btn" id="clearBtn" title="Clear input">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div class="editor-wrap">
+            <textarea
+              id="sourceInput"
+              class="source-input"
+              placeholder="Type or paste text to transform..."
+              spellcheck="false"
+              aria-label="Source text input"
+            >Hello my name is Caleb, and @alex said NASA is launching a new mission at https://nasa.gov today!</textarea>
+          </div>
+          <div class="pane-footer">
+            <span class="tabular" id="sourceCounts">0 chars · 0 words</span>
+            <span>Auto-translates live</span>
+          </div>
+        </section>
+
+        <!-- Precision Controls Card -->
+        <section class="card" aria-labelledby="controlsHeading">
+          <div class="card-header">
+            <h2 class="card-title" id="controlsHeading">Casing Rules &amp; Precision</h2>
+            <button type="button" class="mini-btn" id="resetControlsBtn">Reset</button>
+          </div>
+          <div class="control-body">
+            <!-- Translation Mode Segmented Control -->
+            <div class="control-block">
+              <div class="control-label-row">
+                <span class="control-label">Translation Mode</span>
+                <span class="control-sublabel" id="modeDescription">Weighted random probability</span>
+              </div>
+              <div class="segmented" role="group" aria-label="Translation Mode">
+                <button type="button" class="seg-btn" data-mode="random" aria-pressed="true">Random</button>
+                <button type="button" class="seg-btn" data-mode="strict" aria-pressed="false">Strict</button>
+                <button type="button" class="seg-btn" data-mode="word" aria-pressed="false">Word Reset</button>
+                <button type="button" class="seg-btn" data-mode="inverse" aria-pressed="false">Inverse</button>
+              </div>
+            </div>
+
+            <!-- Uppercase Ratio Slider & Presets -->
+            <div class="control-block">
+              <div class="control-label-row">
+                <label class="control-label" for="ratioSlider">Uppercase Ratio</label>
+                <span class="tabular" id="ratioTargetDisplay" style="font-weight:600; color:var(--accent);">55%</span>
+              </div>
+              <div class="slider-wrap">
+                <input
+                  type="range"
+                  id="ratioSlider"
+                  class="editorial-slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="55"
+                />
+                <div class="preset-row" role="group" aria-label="Style presets">
+                  <button type="button" class="preset-pill" data-preset="subtle">Subtle (35%)</button>
+                  <button type="button" class="preset-pill is-active" data-preset="balanced">Balanced (55%)</button>
+                  <button type="button" class="preset-pill" data-preset="heavy">Heavy (75%)</button>
+                  <button type="button" class="preset-pill" data-preset="sarcasm">Sarcasm (50% Strict)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Max Consecutive Same-Case -->
+            <div class="control-block">
+              <div class="control-label-row">
+                <span class="control-label">Max Consecutive Same-Case</span>
+                <span class="control-sublabel">Caps streaks in Random mode</span>
+              </div>
+              <div class="segmented" role="group" aria-label="Max consecutive same case">
+                <button type="button" class="seg-btn" data-streak="1" aria-pressed="false">1</button>
+                <button type="button" class="seg-btn" data-streak="2" aria-pressed="true">2</button>
+                <button type="button" class="seg-btn" data-streak="3" aria-pressed="false">3</button>
+                <button type="button" class="seg-btn" data-streak="0" aria-pressed="false">Any</button>
+              </div>
+            </div>
+
+            <!-- Smart Exclusions & Rhythm Toggles -->
+            <div class="control-block">
+              <span class="control-label">Smart Exclusions &amp; Rhythm</span>
+              <div class="toggle-list">
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Smart “I / l” Readability</span>
+                    <span class="toggle-desc">Avoids adjacent lowercase “l” and uppercase “I”</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optSmartIL" checked />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Keep URLs Untouched</span>
+                    <span class="toggle-desc">Preserves https://, http://, and www. links</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optKeepUrls" checked />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Keep @mentions &amp; #hashtags</span>
+                    <span class="toggle-desc">Leaves social handles and tags intact</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optKeepHandles" checked />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Keep All-Caps Acronyms</span>
+                    <span class="toggle-desc">Preserves words like NASA, LOL, and NYC</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optKeepAcronyms" checked />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Sentence First-Letter Lock</span>
+                    <span class="toggle-desc">Forces first letter of every sentence to uppercase</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optSentenceLock" />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+
+                <label class="toggle-item">
+                  <span class="toggle-text">
+                    <span class="toggle-title">Line-by-Line Streak Reset</span>
+                    <span class="toggle-desc">Resets alternation state on each new line</span>
+                  </span>
+                  <span class="switch">
+                    <input type="checkbox" id="optLineReset" checked />
+                    <span class="switch-track"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Output + Variations + History -->
+      <div class="column-stack">
+        <!-- Live Output Pane -->
+        <section class="card" aria-labelledby="outputHeading">
+          <div class="card-header">
+            <h2 class="card-title" id="outputHeading">Translated Output</h2>
+            <div class="toolbar-group">
+              <button type="button" class="mini-btn accent-pill" id="rerollBtn" title="Generate new random seed (Cmd/Ctrl + Enter)">
+                <span class="reroll-icon" id="rerollIcon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                    <path d="M16 16h5v5"></path>
+                  </svg>
+                </span>
+                Re-roll
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-wrap">
+            <div
+              id="outputDisplay"
+              class="output-display"
+              role="region"
+              aria-live="polite"
+              aria-label="Translated text output"
+            ></div>
+          </div>
+
+          <div class="pane-footer">
+            <span class="tabular" id="outputCounts">0 chars · 0 words</span>
+            <div class="ratio-meter-wrap" title="Actual percentage of uppercase letters in output">
+              <span>Upper</span>
+              <div class="ratio-track">
+                <div class="ratio-fill" id="actualRatioBar"></div>
+              </div>
+              <span class="tabular" id="actualRatioText">0%</span>
+            </div>
+          </div>
+
+          <!-- Desktop Action Bar -->
+          <div class="desktop-actions">
+            <button type="button" class="action-btn primary" id="copyBtnDesktop">
+              <svg class="copy-icon-default" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+              </svg>
+              <svg class="copy-icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span class="copy-label">Copy</span>
+            </button>
+
+            <button type="button" class="action-btn" id="messagesBtnDesktop" title="Open in Messages / SMS">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path>
+              </svg>
+              Messages
+            </button>
+
+            <button type="button" class="action-btn" id="whatsappBtnDesktop" title="Send via WhatsApp">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              WhatsApp
+            </button>
+
+            <button type="button" class="action-btn" id="instagramBtnDesktop" title="Copy & open Instagram Direct">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+              </svg>
+              Instagram
+            </button>
+
+            <button type="button" class="action-btn" id="shareBtnDesktop" title="System Share">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                <polyline points="16 6 12 2 8 6"></polyline>
+                <line x1="12" x2="12" y1="2" y2="15"></line>
+              </svg>
+              Share
+            </button>
+          </div>
+        </section>
+
+        <!-- 3-Variation Quick Picker -->
+        <section class="card" aria-labelledby="variationsHeading">
+          <div class="card-header">
+            <h2 class="card-title" id="variationsHeading">Quick Variations</h2>
+            <span class="control-sublabel">Tap to select</span>
+          </div>
+          <div class="variations-list" id="variationsList"></div>
+        </section>
+
+        <!-- Recent History Drawer -->
+        <section class="card" aria-labelledby="historyHeading">
+          <button
+            type="button"
+            class="history-toggle-btn"
+            id="historyToggleBtn"
+            aria-expanded="false"
+            aria-controls="historyPanel"
+          >
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span class="card-title" id="historyHeading">Recent History</span>
+              <span class="variation-badge tabular" id="historyCountBadge">0</span>
+            </span>
+            <svg class="history-chevron" id="historyChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="history-panel" id="historyPanel">
+            <div id="historyList"></div>
+            <div style="display:flex; justify-content:flex-end;">
+              <button type="button" class="mini-btn" id="clearHistoryBtn" style="display:none;">Clear History</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Sticky Mobile Safe-Area Dock -->
+    <nav class="mobile-dock" aria-label="Quick send and copy actions">
+      <button type="button" class="dock-btn primary" id="copyBtnMobile">
+        <svg class="copy-icon-default" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+        </svg>
+        <svg class="copy-icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span class="copy-label">Copy</span>
+      </button>
+
+      <button type="button" class="dock-btn" id="messagesBtnMobile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path>
+        </svg>
+        <span>Messages</span>
+      </button>
+
+      <button type="button" class="dock-btn" id="whatsappBtnMobile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+        <span>WhatsApp</span>
+      </button>
+
+      <button type="button" class="dock-btn" id="instagramBtnMobile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+        </svg>
+        <span>Instagram</span>
+      </button>
+
+      <button type="button" class="dock-btn" id="shareBtnMobile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+          <polyline points="16 6 12 2 8 6"></polyline>
+          <line x1="12" x2="12" y1="2" y2="15"></line>
+        </svg>
+        <span>Share</span>
+      </button>
+    </nav>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ======================================================================
+         STATE & CONSTANTS
+         ====================================================================== */
+      const STORAGE_HISTORY_KEY = "mockcase_history_v1";
+      const STORAGE_THEME_KEY = "mockcase_theme_v1";
+      const MAX_HISTORY = 8;
+
+      const SAMPLES = [
+        "Hello my name is Caleb, and @alex said NASA is launching a new mission at https://nasa.gov today!",
+        "Sure, I totally love waking up at 5:30 AM for an unscheduled status meeting #grindset",
+        "Wait so you're telling me NYC traffic is backed up again? LOL classic Monday."
+      ];
+
+      const MODE_DESCRIPTIONS = {
+        random: "Weighted random probability",
+        strict: "Strictly alternates every letter",
+        word: "Resets alternation on each word",
+        inverse: "Flips existing uppercase & lowercase"
+      };
+
+      const state = {
+        text: "",
+        mode: "random",
+        ratio: 55,
+        maxStreak: 2,
+        smartIL: true,
+        keepUrls: true,
+        keepHandles: true,
+        keepAcronyms: true,
+        sentenceLock: false,
+        lineReset: true,
+        seed: Math.floor(Math.random() * 1000000) + 1,
+        sampleIndex: 0,
+        currentOutput: "",
+        historyOpen: false
+      };
+
+      /* ======================================================================
+         DOM REFERENCES
+         ====================================================================== */
+      const els = {
+        topHeader: document.getElementById("topHeader"),
+        themeToggle: document.getElementById("themeToggle"),
+        themeIconSun: document.getElementById("themeIconSun"),
+        themeIconMoon: document.getElementById("themeIconMoon"),
+        themeLabel: document.getElementById("themeLabel"),
+
+        sourceInput: document.getElementById("sourceInput"),
+        sourceCounts: document.getElementById("sourceCounts"),
+        pasteBtn: document.getElementById("pasteBtn"),
+        sampleBtn: document.getElementById("sampleBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+
+        outputDisplay: document.getElementById("outputDisplay"),
+        outputCounts: document.getElementById("outputCounts"),
+        actualRatioBar: document.getElementById("actualRatioBar"),
+        actualRatioText: document.getElementById("actualRatioText"),
+        rerollBtn: document.getElementById("rerollBtn"),
+        rerollIcon: document.getElementById("rerollIcon"),
+
+        modeButtons: document.querySelectorAll("[data-mode]"),
+        modeDescription: document.getElementById("modeDescription"),
+        ratioSlider: document.getElementById("ratioSlider"),
+        ratioTargetDisplay: document.getElementById("ratioTargetDisplay"),
+        presetPills: document.querySelectorAll("[data-preset]"),
+        streakButtons: document.querySelectorAll("[data-streak]"),
+        resetControlsBtn: document.getElementById("resetControlsBtn"),
+
+        optSmartIL: document.getElementById("optSmartIL"),
+        optKeepUrls: document.getElementById("optKeepUrls"),
+        optKeepHandles: document.getElementById("optKeepHandles"),
+        optKeepAcronyms: document.getElementById("optKeepAcronyms"),
+        optSentenceLock: document.getElementById("optSentenceLock"),
+        optLineReset: document.getElementById("optLineReset"),
+
+        variationsList: document.getElementById("variationsList"),
+
+        historyToggleBtn: document.getElementById("historyToggleBtn"),
+        historyChevron: document.getElementById("historyChevron"),
+        historyPanel: document.getElementById("historyPanel"),
+        historyList: document.getElementById("historyList"),
+        historyCountBadge: document.getElementById("historyCountBadge"),
+        clearHistoryBtn: document.getElementById("clearHistoryBtn"),
+
+        copyBtnDesktop: document.getElementById("copyBtnDesktop"),
+        copyBtnMobile: document.getElementById("copyBtnMobile"),
+        messagesBtnDesktop: document.getElementById("messagesBtnDesktop"),
+        messagesBtnMobile: document.getElementById("messagesBtnMobile"),
+        whatsappBtnDesktop: document.getElementById("whatsappBtnDesktop"),
+        whatsappBtnMobile: document.getElementById("whatsappBtnMobile"),
+        instagramBtnDesktop: document.getElementById("instagramBtnDesktop"),
+        instagramBtnMobile: document.getElementById("instagramBtnMobile"),
+        shareBtnDesktop: document.getElementById("shareBtnDesktop"),
+        shareBtnMobile: document.getElementById("shareBtnMobile"),
+
+        toast: document.getElementById("toast")
+      };
+
+      /* ======================================================================
+         DETERMINISTIC SEEDED PRNG (Mulberry32)
+         ====================================================================== */
+      function createRng(seed) {
+        let a = seed >>> 0;
+        return function () {
+          let t = (a += 0x6D2B79F5);
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      /* ======================================================================
+         TOKENIZATION & CASING ENGINE
+         ====================================================================== */
+      function isLetter(ch) {
+        return /[a-zA-Z]/.test(ch);
+      }
+
+      function isExcludedToken(token) {
+        if (!token) return false;
+        // URLs: http://, https://, www.
+        if (state.keepUrls && /^(https?:\/\/|www\.)\S+$/i.test(token)) {
+          return true;
+        }
+        // @mentions and #hashtags
+        if (state.keepHandles && /^[@#][a-zA-Z0-9_.-]+$/.test(token)) {
+          return true;
+        }
+        // All-caps acronyms (e.g., NASA, LOL, NYC — 2+ uppercase letters, optional trailing punctuation stripped)
+        if (state.keepAcronyms) {
+          const core = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+          if (core.length >= 2 && /^[A-Z]{2,}$/.test(core)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function transformText(input, seedVal) {
+        if (!input) return "";
+        const rng = createRng(seedVal);
+        const targetProb = state.ratio / 100;
+
+        let lastWasUpper = rng() < targetProb;
+        let streakCount = 0;
+        let lastOutputChar = "";
+        let atSentenceStart = true;
+
+        // Split preserving whitespace tokens so newlines & spaces remain exact
+        const tokens = input.split(/(\s+)/);
+        const resultTokens = tokens.map((token) => {
+          if (!token) return "";
+
+          // Handle whitespace / newlines
+          if (/^\s+$/.test(token)) {
+            if (state.lineReset && token.includes("\n")) {
+              streakCount = 0;
+              lastWasUpper = rng() < targetProb;
+              atSentenceStart = true;
+            }
+            return token;
+          }
+
+          // Check Smart Exclusions
+          if (isExcludedToken(token)) {
+            // Update sentence boundary detection after excluded token
+            if (/[.!?]["')\]]*$/.test(token)) {
+              atSentenceStart = true;
+            } else if (/[a-zA-Z0-9]/.test(token)) {
+              atSentenceStart = false;
+            }
+            lastOutputChar = token[token.length - 1];
+            return token;
+          }
+
+          // Word Reset mode resets alternation at start of each word
+          if (state.mode === "word") {
+            lastWasUpper = rng() < 0.5 ? false : true;
+            streakCount = 0;
+          }
+
+          let outWord = "";
+          for (let i = 0; i < token.length; i++) {
+            const ch = token[i];
+
+            if (!isLetter(ch)) {
+              outWord += ch;
+              lastOutputChar = ch;
+              if (ch === "." || ch === "!" || ch === "?") {
+                atSentenceStart = true;
+              }
+              continue;
+            }
+
+            let makeUpper = false;
+
+            if (state.sentenceLock && atSentenceStart) {
+              makeUpper = true;
+            } else if (state.mode === "inverse") {
+              makeUpper = ch === ch.toLowerCase();
+            } else if (state.mode === "strict" || state.mode === "word") {
+              makeUpper = !lastWasUpper;
+            } else {
+              // Random weighted mode
+              if (state.ratio === 0) {
+                makeUpper = false;
+              } else if (state.ratio === 100) {
+                makeUpper = true;
+              } else {
+                makeUpper = rng() < targetProb;
+                // Enforce Max Consecutive Same-Case streak
+                if (state.maxStreak > 0 && streakCount >= state.maxStreak) {
+                  makeUpper = !lastWasUpper;
+                }
+              }
+            }
+
+            // Smart "I / l" Readability adjustment (when not locked by sentence start or 0/100% extremes)
+            if (
+              state.smartIL &&
+              !(state.sentenceLock && atSentenceStart) &&
+              state.mode !== "inverse" &&
+              state.ratio > 0 &&
+              state.ratio < 100
+            ) {
+              const lowerCh = ch.toLowerCase();
+              // Avoid uppercase 'I' next to lowercase 'l'
+              if (lowerCh === "i" && makeUpper && lastOutputChar === "l") {
+                makeUpper = false;
+              } else if (lowerCh === "l" && !makeUpper && lastOutputChar === "I") {
+                makeUpper = true;
+              }
+            }
+
+            const transformedChar = makeUpper ? ch.toUpperCase() : ch.toLowerCase();
+            outWord += transformedChar;
+
+            if (makeUpper === lastWasUpper) {
+              streakCount += 1;
+            } else {
+              streakCount = 1;
+            }
+
+            lastWasUpper = makeUpper;
+            lastOutputChar = transformedChar;
+            atSentenceStart = false;
+          }
+
+          return outWord;
+        });
+
+        return resultTokens.join("");
+      }
+
+      /* ======================================================================
+         METRICS & RENDERING
+         ====================================================================== */
+      function computeStats(str) {
+        const chars = str.length;
+        const trimmed = str.trim();
+        const words = trimmed ? trimmed.split(/\s+/).length : 0;
+
+        let totalLetters = 0;
+        let upperLetters = 0;
+        for (let i = 0; i < str.length; i++) {
+          const c = str[i];
+          if (/[a-zA-Z]/.test(c)) {
+            totalLetters++;
+            if (c === c.toUpperCase()) {
+              upperLetters++;
+            }
+          }
+        }
+        const upperPct = totalLetters > 0 ? Math.round((upperLetters / totalLetters) * 100) : 0;
+        return { chars, words, upperPct };
+      }
+
+      function renderVariations() {
+        const container = els.variationsList;
+        container.innerHTML = "";
+
+        if (!state.text.trim()) {
+          const empty = document.createElement("div");
+          empty.className = "control-sublabel";
+          empty.style.padding = "6px 0";
+          empty.textContent = "Enter text above to generate quick variations.";
+          container.appendChild(empty);
+          return;
+        }
+
+        const offsets = [101, 2029, 7919];
+        offsets.forEach((offset, idx) => {
+          const variantSeed = state.seed + offset;
+          const variantText = transformText(state.text, variantSeed);
+          const stats = computeStats(variantText);
+
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "variation-card";
+          btn.title = "Apply this variation";
+
+          const textSpan = document.createElement("span");
+          textSpan.className = "variation-text";
+          textSpan.textContent = variantText.replace(/\s+/g, " ");
+
+          const badgeSpan = document.createElement("span");
+          badgeSpan.className = "variation-badge";
+          badgeSpan.textContent = `V${idx + 1} · ${stats.upperPct}%`;
+
+          btn.appendChild(textSpan);
+          btn.appendChild(badgeSpan);
+
+          btn.addEventListener("click", () => {
+            state.seed = variantSeed;
+            updateOutput();
+            showToast(`Applied Variation ${idx + 1}`);
+          });
+
+          container.appendChild(btn);
+        });
+      }
+
+      function updateOutput() {
+        state.text = els.sourceInput.value;
+        const srcStats = computeStats(state.text);
+        els.sourceCounts.textContent = `${srcStats.chars} ${srcStats.chars === 1 ? "char" : "chars"} · ${srcStats.words} ${srcStats.words === 1 ? "word" : "words"}`;
+
+        if (!state.text) {
+          state.currentOutput = "";
+          els.outputDisplay.innerHTML = '<span class="output-placeholder">Translated text appears here...</span>';
+          els.outputCounts.textContent = "0 chars · 0 words";
+          els.actualRatioBar.style.width = "0%";
+          els.actualRatioText.textContent = "0%";
+          renderVariations();
+          return;
+        }
+
+        const translated = transformText(state.text, state.seed);
+        state.currentOutput = translated;
+        els.outputDisplay.textContent = translated;
+
+        const outStats = computeStats(translated);
+        els.outputCounts.textContent = `${outStats.chars} ${outStats.chars === 1 ? "char" : "chars"} · ${outStats.words} ${outStats.words === 1 ? "word" : "words"}`;
+        els.actualRatioBar.style.width = `${outStats.upperPct}%`;
+        els.actualRatioText.textContent = `${outStats.upperPct}%`;
+
+        renderVariations();
+      }
+
+      /* ======================================================================
+         CONTROLS SYNC & URL QUERY PARAMETERS
+         ====================================================================== */
+      function syncControlsUI() {
+        // Mode buttons
+        els.modeButtons.forEach((btn) => {
+          const isMatch = btn.dataset.mode === state.mode;
+          btn.setAttribute("aria-pressed", String(isMatch));
+        });
+        els.modeDescription.textContent = MODE_DESCRIPTIONS[state.mode] || "";
+
+        // Slider state (disable slider when mode doesn't use ratio)
+        const usesRatio = state.mode === "random";
+        els.ratioSlider.disabled = !usesRatio;
+        els.ratioSlider.value = String(state.ratio);
+        els.ratioTargetDisplay.textContent = usesRatio ? `${state.ratio}%` : "Auto";
+
+        // Streak buttons
+        els.streakButtons.forEach((btn) => {
+          const val = Number(btn.dataset.streak);
+          btn.setAttribute("aria-pressed", String(val === state.maxStreak));
+          btn.disabled = state.mode !== "random";
+          btn.style.opacity = state.mode === "random" ? "1" : "0.5";
+        });
+
+        // Preset highlight
+        els.presetPills.forEach((pill) => {
+          const p = pill.dataset.preset;
+          let active = false;
+          if (p === "subtle" && state.mode === "random" && state.ratio === 35) active = true;
+          if (p === "balanced" && state.mode === "random" && state.ratio === 55) active = true;
+          if (p === "heavy" && state.mode === "random" && state.ratio === 75) active = true;
+          if (p === "sarcasm" && state.mode === "strict") active = true;
+          pill.classList.toggle("is-active", active);
+        });
+
+        // Toggles
+        els.optSmartIL.checked = state.smartIL;
+        els.optKeepUrls.checked = state.keepUrls;
+        els.optKeepHandles.checked = state.keepHandles;
+        els.optKeepAcronyms.checked = state.keepAcronyms;
+        els.optSentenceLock.checked = state.sentenceLock;
+        els.optLineReset.checked = state.lineReset;
+      }
+
+      function syncUrlParams() {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set("mode", state.mode);
+          url.searchParams.set("ratio", String(state.ratio));
+          url.searchParams.set("streak", String(state.maxStreak));
+          window.history.replaceState({}, "", url.toString());
+        } catch (_) {
+          // Ignore in sandboxed iframe environments where replaceState may be restricted
+        }
+      }
+
+      function loadFromUrlParams() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const mode = params.get("mode");
+          if (mode && ["random", "strict", "word", "inverse"].includes(mode)) {
+            state.mode = mode;
+          }
+          const ratio = params.get("ratio");
+          if (ratio !== null && !Number.isNaN(Number(ratio))) {
+            state.ratio = Math.min(100, Math.max(0, Number(ratio)));
+          }
+          const streak = params.get("streak");
+          if (streak !== null && [0, 1, 2, 3].includes(Number(streak))) {
+            state.maxStreak = Number(streak);
+          }
+        } catch (_) {
+          // Safe fallback
+        }
+      }
+
+      /* ======================================================================
+         CLIPBOARD, TOAST & MESSAGING INTEGRATIONS
+         ====================================================================== */
+      let toastTimer = null;
+      function showToast(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("is-visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          els.toast.classList.remove("is-visible");
+        }, 2300);
+      }
+
+      function flashCopyButtons() {
+        const pairs = [els.copyBtnDesktop, els.copyBtnMobile];
+        pairs.forEach((btn) => {
+          if (!btn) return;
+          const defIcon = btn.querySelector(".copy-icon-default");
+          const chkIcon = btn.querySelector(".copy-icon-check");
+          const lbl = btn.querySelector(".copy-label");
+          if (defIcon) defIcon.style.display = "none";
+          if (chkIcon) chkIcon.style.display = "inline";
+          if (lbl) lbl.textContent = "Copied";
+        });
+
+        setTimeout(() => {
+          pairs.forEach((btn) => {
+            if (!btn) return;
+            const defIcon = btn.querySelector(".copy-icon-default");
+            const chkIcon = btn.querySelector(".copy-icon-check");
+            const lbl = btn.querySelector(".copy-label");
+            if (defIcon) defIcon.style.display = "inline";
+            if (chkIcon) chkIcon.style.display = "none";
+            if (lbl) lbl.textContent = "Copy";
+          });
+        }, 1600);
+      }
+
+      async function copyTextToClipboard(text) {
+        if (!text) return false;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+          }
+        } catch (_) {
+          // Fall through to execCommand fallback
+        }
+
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        temp.setAttribute("readonly", "");
+        temp.style.position = "fixed";
+        temp.style.left = "-9999px";
+        document.body.appendChild(temp);
+        temp.select();
+        let ok = false;
+        try {
+          ok = document.execCommand("copy");
+        } catch (_) {
+          ok = false;
+        }
+        document.body.removeChild(temp);
+        return ok;
+      }
+
+      async function handleCopy(recordHistory = true) {
+        if (!state.currentOutput) {
+          showToast("Nothing to copy yet");
+          return false;
+        }
+        const success = await copyTextToClipboard(state.currentOutput);
+        if (success) {
+          flashCopyButtons();
+          showToast("Copied to clipboard");
+          if (recordHistory) {
+            saveHistoryItem(state.currentOutput, state.mode);
+          }
+        } else {
+          showToast("Select text to copy manually");
+        }
+        return success;
+      }
+
+      function handleMessagesSend() {
+        if (!state.currentOutput) {
+          showToast("Enter text first");
+          return;
+        }
+        saveHistoryItem(state.currentOutput, state.mode);
+        const encoded = encodeURIComponent(state.currentOutput);
+        window.location.href = `sms:?&body=${encoded}`;
+      }
+
+      function handleWhatsAppSend() {
+        if (!state.currentOutput) {
+          showToast("Enter text first");
+          return;
+        }
+        saveHistoryItem(state.currentOutput, state.mode);
+        const encoded = encodeURIComponent(state.currentOutput);
+        window.open(`https://wa.me/?text=${encoded}`, "_blank", "noopener,noreferrer");
+      }
+
+      async function handleInstagramSend() {
+        if (!state.currentOutput) {
+          showToast("Enter text first");
+          return;
+        }
+        await copyTextToClipboard(state.currentOutput);
+        saveHistoryItem(state.currentOutput, state.mode);
+        showToast("Copied — paste in Instagram DM");
+
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+          const start = Date.now();
+          window.location.href = "instagram://direct-inbox";
+          setTimeout(() => {
+            if (Date.now() - start < 1800) {
+              window.open("https://www.instagram.com/direct/inbox/", "_blank", "noopener,noreferrer");
+            }
+          }, 900);
+        } else {
+          window.open("https://www.instagram.com/direct/inbox/", "_blank", "noopener,noreferrer");
+        }
+      }
+
+      async function handleSystemShare() {
+        if (!state.currentOutput) {
+          showToast("Enter text first");
+          return;
+        }
+        saveHistoryItem(state.currentOutput, state.mode);
+
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              text: state.currentOutput
+            });
+            return;
+          } catch (err) {
+            if (err && err.name === "AbortError") return;
+          }
+        }
+        await handleCopy(false);
+      }
+
+      /* ======================================================================
+         LOCAL STORAGE HISTORY DRAWER
+         ====================================================================== */
+      function getHistory() {
+        try {
+          const raw = localStorage.getItem(STORAGE_HISTORY_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function saveHistoryItem(text, mode) {
+        if (!text || !text.trim()) return;
+        try {
+          let items = getHistory();
+          // Avoid immediate duplicate at top
+          if (items.length > 0 && items[0].text === text) {
+            return;
+          }
+          items = items.filter((item) => item.text !== text);
+          items.unshift({
+            id: Date.now(),
+            text,
+            mode,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          });
+          if (items.length > MAX_HISTORY) {
+            items = items.slice(0, MAX_HISTORY);
+          }
+          localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(items));
+          renderHistory();
+        } catch (_) {
+          // Ignore storage quota errors
+        }
+      }
+
+      function renderHistory() {
+        const items = getHistory();
+        els.historyCountBadge.textContent = String(items.length);
+        els.clearHistoryBtn.style.display = items.length > 0 ? "inline-flex" : "none";
+        els.historyList.innerHTML = "";
+
+        if (items.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "history-empty";
+          empty.textContent = "Copied or sent outputs will appear here.";
+          els.historyList.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item) => {
+          const card = document.createElement("div");
+          card.className = "history-item";
+
+          const top = document.createElement("div");
+          top.className = "history-item-top";
+          top.innerHTML = `<span class="variation-badge" style="text-transform:capitalize;">${item.mode}</span><span class="tabular">${item.timestamp}</span>`;
+
+          const textEl = document.createElement("div");
+          textEl.className = "history-item-text";
+          textEl.textContent = item.text;
+
+          const actions = document.createElement("div");
+          actions.className = "history-item-actions";
+
+          const restoreBtn = document.createElement("button");
+          restoreBtn.type = "button";
+          restoreBtn.className = "mini-btn";
+          restoreBtn.textContent = "Restore";
+          restoreBtn.addEventListener("click", () => {
+            state.currentOutput = item.text;
+            els.outputDisplay.textContent = item.text;
+            const outStats = computeStats(item.text);
+            els.outputCounts.textContent = `${outStats.chars} ${outStats.chars === 1 ? "char" : "chars"} · ${outStats.words} ${outStats.words === 1 ? "word" : "words"}`;
+            els.actualRatioBar.style.width = `${outStats.upperPct}%`;
+            els.actualRatioText.textContent = `${outStats.upperPct}%`;
+            showToast("Restored to output");
+          });
+
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = "mini-btn accent-pill";
+          copyBtn.textContent = "Copy";
+          copyBtn.addEventListener("click", async () => {
+            const ok = await copyTextToClipboard(item.text);
+            if (ok) showToast("Copied from history");
+          });
+
+          actions.appendChild(restoreBtn);
+          actions.appendChild(copyBtn);
+
+          card.appendChild(top);
+          card.appendChild(textEl);
+          card.appendChild(actions);
+          els.historyList.appendChild(card);
+        });
+      }
+
+      /* ======================================================================
+         THEME MANAGEMENT
+         ====================================================================== */
+      function applyTheme(theme) {
+        const isDark = theme === "dark";
+        document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+        els.themeIconSun.style.display = isDark ? "inline" : "none";
+        els.themeIconMoon.style.display = isDark ? "none" : "inline";
+        els.themeLabel.textContent = isDark ? "Light" : "Dark";
+        try {
+          localStorage.setItem(STORAGE_THEME_KEY, isDark ? "dark" : "light");
+        } catch (_) {}
+      }
+
+      function initTheme() {
+        let saved = null;
+        try {
+          saved = localStorage.getItem(STORAGE_THEME_KEY);
+        } catch (_) {}
+        if (saved === "dark" || saved === "light") {
+          applyTheme(saved);
+        } else {
+          const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          applyTheme(prefersDark ? "dark" : "light");
+        }
+      }
+
+      /* ======================================================================
+         RE-ROLL & EVENT LISTENERS
+         ====================================================================== */
+      function triggerReroll() {
+        state.seed = Math.floor(Math.random() * 1000000) + 1;
+        els.rerollIcon.classList.add("is-spinning");
+        setTimeout(() => {
+          els.rerollIcon.classList.remove("is-spinning");
+        }, 250);
+        updateOutput();
+      }
+
+      function bindEvents() {
+        // Scroll header hairline
+        window.addEventListener("scroll", () => {
+          els.topHeader.classList.toggle("is-scrolled", window.scrollY > 6);
+        }, { passive: true });
+
+        // Theme toggle
+        els.themeToggle.addEventListener("click", () => {
+          const current = document.documentElement.getAttribute("data-theme");
+          applyTheme(current === "dark" ? "light" : "dark");
+        });
+
+        // Source text input
+        els.sourceInput.addEventListener("input", updateOutput);
+
+        // Paste button
+        els.pasteBtn.addEventListener("click", async () => {
+          try {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+              const clip = await navigator.clipboard.readText();
+              if (clip) {
+                els.sourceInput.value = clip;
+                updateOutput();
+                showToast("Pasted from clipboard");
+                return;
+              }
+            }
+          } catch (_) {
+            // Permission denied fallback
+          }
+          els.sourceInput.focus();
+          showToast("Tap input and select Paste");
+        });
+
+        // Sample button
+        els.sampleBtn.addEventListener("click", () => {
+          state.sampleIndex = (state.sampleIndex + 1) % SAMPLES.length;
+          els.sourceInput.value = SAMPLES[state.sampleIndex];
+          triggerReroll();
+          showToast(`Loaded Sample ${state.sampleIndex + 1} of ${SAMPLES.length}`);
+        });
+
+        // Clear button
+        els.clearBtn.addEventListener("click", () => {
+          els.sourceInput.value = "";
+          els.sourceInput.focus();
+          updateOutput();
+        });
+
+        // Re-roll button
+        els.rerollBtn.addEventListener("click", triggerReroll);
+
+        // Mode segmented buttons
+        els.modeButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            state.mode = btn.dataset.mode;
+            syncControlsUI();
+            syncUrlParams();
+            updateOutput();
+          });
+        });
+
+        // Uppercase ratio slider
+        els.ratioSlider.addEventListener("input", () => {
+          state.ratio = Number(els.ratioSlider.value);
+          syncControlsUI();
+          syncUrlParams();
+          updateOutput();
+        });
+
+        // Preset pills
+        els.presetPills.forEach((pill) => {
+          pill.addEventListener("click", () => {
+            const p = pill.dataset.preset;
+            if (p === "subtle") {
+              state.mode = "random";
+              state.ratio = 35;
+              state.maxStreak = 2;
+            } else if (p === "balanced") {
+              state.mode = "random";
+              state.ratio = 55;
+              state.maxStreak = 2;
+            } else if (p === "heavy") {
+              state.mode = "random";
+              state.ratio = 75;
+              state.maxStreak = 3;
+            } else if (p === "sarcasm") {
+              state.mode = "strict";
+              state.ratio = 50;
+            }
+            syncControlsUI();
+            syncUrlParams();
+            triggerReroll();
+          });
+        });
+
+        // Streak buttons
+        els.streakButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            state.maxStreak = Number(btn.dataset.streak);
+            syncControlsUI();
+            syncUrlParams();
+            updateOutput();
+          });
+        });
+
+        // Reset controls
+        els.resetControlsBtn.addEventListener("click", () => {
+          state.mode = "random";
+          state.ratio = 55;
+          state.maxStreak = 2;
+          state.smartIL = true;
+          state.keepUrls = true;
+          state.keepHandles = true;
+          state.keepAcronyms = true;
+          state.sentenceLock = false;
+          state.lineReset = true;
+          syncControlsUI();
+          syncUrlParams();
+          triggerReroll();
+          showToast("Rules reset to defaults");
+        });
+
+        // Exclusion & Rhythm checkboxes
+        const toggleMap = [
+          [els.optSmartIL, "smartIL"],
+          [els.optKeepUrls, "keepUrls"],
+          [els.optKeepHandles, "keepHandles"],
+          [els.optKeepAcronyms, "keepAcronyms"],
+          [els.optSentenceLock, "sentenceLock"],
+          [els.optLineReset, "lineReset"]
+        ];
+        toggleMap.forEach(([inputEl, key]) => {
+          inputEl.addEventListener("change", () => {
+            state[key] = inputEl.checked;
+            updateOutput();
+          });
+        });
+
+        // History drawer toggle & clear
+        els.historyToggleBtn.addEventListener("click", () => {
+          state.historyOpen = !state.historyOpen;
+          els.historyPanel.classList.toggle("is-open", state.historyOpen);
+          els.historyChevron.classList.toggle("is-open", state.historyOpen);
+          els.historyToggleBtn.setAttribute("aria-expanded", String(state.historyOpen));
+        });
+
+        els.clearHistoryBtn.addEventListener("click", () => {
+          try {
+            localStorage.removeItem(STORAGE_HISTORY_KEY);
+          } catch (_) {}
+          renderHistory();
+          showToast("History cleared");
+        });
+
+        // Copy & Social/Messaging Buttons (Desktop + Mobile)
+        [els.copyBtnDesktop, els.copyBtnMobile].forEach((btn) => {
+          btn.addEventListener("click", () => handleCopy(true));
+        });
+
+        [els.messagesBtnDesktop, els.messagesBtnMobile].forEach((btn) => {
+          btn.addEventListener("click", handleMessagesSend);
+        });
+
+        [els.whatsappBtnDesktop, els.whatsappBtnMobile].forEach((btn) => {
+          btn.addEventListener("click", handleWhatsAppSend);
+        });
+
+        [els.instagramBtnDesktop, els.instagramBtnMobile].forEach((btn) => {
+          btn.addEventListener("click", handleInstagramSend);
+        });
+
+        [els.shareBtnDesktop, els.shareBtnMobile].forEach((btn) => {
+          btn.addEventListener("click", handleSystemShare);
+        });
+
+        // Keyboard shortcuts: Cmd/Ctrl + Enter (Re-roll), Cmd/Ctrl + Shift + C (Copy)
+        document.addEventListener("keydown", (e) => {
+          const mod = e.metaKey || e.ctrlKey;
+          if (!mod) return;
+
+          if (e.key === "Enter") {
+            e.preventDefault();
+            triggerReroll();
+            showToast("Re-rolled output");
+          } else if (e.shiftKey && (e.key === "C" || e.key === "c")) {
+            e.preventDefault();
+            handleCopy(true);
+          }
+        });
+      }
+
+      /* ======================================================================
+         INITIALIZATION
+         ====================================================================== */
+      initTheme();
+      loadFromUrlParams();
+      syncControlsUI();
+      bindEvents();
+      renderHistory();
+      updateOutput();
+    })();
+  </script>
+</body>
+</html>
